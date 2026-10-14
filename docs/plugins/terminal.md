@@ -135,7 +135,8 @@ term, err := terminal.New(terminal.Options{
 - `OptionAsAlt` makes Option on macOS the Alt key of programs (Meta),
   instead of the key typing accented letters.
 - `CopyOnSelect` copies the selection to the clipboard as the pointer
-  ends it, as Ghostty's `copy-on-select`.
+  ends it, as Ghostty's `copy-on-select`, and as Select All makes it.
+  `SetCopyOnSelect` turns it on or off in a running terminal.
 - `CtrlCCopies`, `CtrlVPastes` and `InsertKeys` add the keys of Windows
   Terminal, outside macOS: Control+C copies the selection and lets go of
   it, and still interrupts the program when nothing is selected;
