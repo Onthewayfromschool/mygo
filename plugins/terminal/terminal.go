@@ -115,7 +115,8 @@ type Options struct {
 	// sending with the bytes sent so far of the total, then sent; or not
 	// taken when the program does not read within a moment; or
 	// unsupported when the clipboard holds only an image and the program
-	// does not read the clipboard, so nothing is pasted.
+	// reads neither the clipboard nor bracketed pastes, so nothing is
+	// pasted.
 	OnPasteStatus func(status PasteStatus, sent, total int)
 
 	// OpenLink takes what a Command+click (Control+click elsewhere)
@@ -181,8 +182,9 @@ const (
 	PasteSent
 	// PasteNotTaken: the program did not read it within a moment.
 	PasteNotTaken
-	// PasteUnsupported: only an image was there and the program does not
-	// read the clipboard: nothing was pasted.
+	// PasteUnsupported: only an image was there and the program neither
+	// reads the clipboard nor takes bracketed pastes (mode 2004): nothing
+	// was pasted. A program that takes bracketed pastes gets an empty one.
 	PasteUnsupported
 )
 
@@ -689,7 +691,8 @@ func (t *Terminal) Paste(text string) {
 // that reads the clipboard itself (mode 5522, the Kitty clipboard
 // protocol, as programs that take images do) is told what there is and
 // reads what it wants; any other gets the text, bracketed when it asks
-// (mode 2004), so that it does not run as commands as it would typed.
+// (mode 2004), so that it does not run as commands as it would typed, or,
+// with only an image there, an empty bracketed paste.
 func (t *Terminal) PasteClipboard(contents map[string][]byte) {
 	t.mu.Lock()
 	if t.term == nil {
@@ -724,10 +727,18 @@ func (t *Terminal) PasteClipboard(contents map[string][]byte) {
 	} else {
 		t.offered = nil
 		text := contents["text/plain"]
-		if len(text) == 0 && len(mimes) > 0 {
+		bracketed := t.term.Mode(vt.ModeBracketedPaste)
+		switch {
+		case len(text) > 0:
+			data = vt.EncodePaste(string(text), bracketed)
+		case len(mimes) > 0 && bracketed:
+			// An empty bracketed paste, as VS Code's and other terminals
+			// send, which programs that take images, as Claude Code, read
+			// as a paste of what the clipboard holds and read it themselves.
+			data = []byte("\x1b[200~\x1b[201~")
+		case len(mimes) > 0:
 			status = PasteUnsupported
 		}
-		data = vt.EncodePaste(string(text), t.term.Mode(vt.ModeBracketedPaste))
 	}
 	t.term.ScrollToBottom()
 	t.mu.Unlock()

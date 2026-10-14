@@ -87,7 +87,10 @@ The terminal does what terminal apps do:
   wants, even over SSH. Only the terminal that pasted answers its read,
   with what the clipboard held at the paste; other terminals showing the
   same program, as other windows on a session, stay silent. Other
-  programs get the text alone, and an image alone pastes nothing.
+  programs get the text alone. An image alone pastes an empty bracketed
+  paste to a program that asks for bracketed pastes, as VS Code's
+  terminal does, which agents such as Claude Code take as their cue to
+  read the image from the clipboard themselves; to any other, nothing.
 - **Scrolling**: the wheel and the touchpad scroll the scrollback, as do
   Shift+Page Up and Shift+Page Down. Full-screen programs get the wheel as
   arrow keys, or as mouse reports when they take the mouse. Typing scrolls
@@ -172,9 +175,9 @@ term, err := terminal.New(terminal.Options{
   `PasteSending` with the bytes sent of the total as the program reads,
   then `PasteSent`; or `PasteNotTaken` when the program does not read
   within 3 seconds, or `PasteUnsupported` when the clipboard holds only an
-  image and the program does not read the clipboard. An app shows a large
-  image's progress over a slow link this way, and says why nothing
-  pasted.
+  image and the program reads neither the clipboard nor bracketed pastes.
+  An app shows a large image's progress over a slow link this way, and
+  says why nothing pasted.
 - `OnKey` sees a key press on the main thread before the terminal sends
   it, and takes it by returning true: neither the key nor the text it
   types reaches the program. Unlike a `Shortcut` around the view, which
