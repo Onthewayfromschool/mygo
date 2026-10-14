@@ -81,7 +81,8 @@ type Options struct {
 	// rather than the key that types accented letters and symbols.
 	OptionAsAlt bool
 	// CopyOnSelect copies what the pointer selects to the clipboard as
-	// the selection ends, as Ghostty's copy-on-select does.
+	// the selection ends, as Ghostty's copy-on-select does, and what
+	// Select All selects. SetCopyOnSelect changes it.
 	CopyOnSelect bool
 	// CtrlCCopies makes Control-C copy the selection when there is one,
 	// and interrupt the program as usual when there is none, as Windows
@@ -622,6 +623,14 @@ func (t *Terminal) SetFont(f Font) {
 	t.opts.Font = f
 	t.mu.Unlock()
 	t.redraw()
+}
+
+// SetCopyOnSelect turns Options.CopyOnSelect on or off, as when the
+// user changes a setting.
+func (t *Terminal) SetCopyOnSelect(on bool) {
+	t.mu.Lock()
+	t.opts.CopyOnSelect = on
+	t.mu.Unlock()
 }
 
 // SetTheme changes the colors, as Options.Theme and DarkTheme.

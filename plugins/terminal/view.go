@@ -558,12 +558,21 @@ func (v *view) paste() {
 func (v *view) selectAll() {
 	t := v.t
 	t.mu.Lock()
+	text := ""
 	if t.term != nil {
 		if s, ok := t.term.SelectAll(); ok {
 			t.term.SetSelection(&s)
+			if t.opts.CopyOnSelect {
+				text, _ = t.term.SelectionText()
+			}
 		}
 	}
 	t.mu.Unlock()
+	if text != "" {
+		// Outside the lock, which the clipboard may hold up while
+		// another program has it.
+		v.services.WriteClipboard(text)
+	}
 	v.services.Invalidate()
 }
 
