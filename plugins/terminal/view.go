@@ -484,6 +484,8 @@ func (v *view) paste() {
 	}
 	if text != "" {
 		v.t.Paste(text)
+	} else {
+		v.t.pasteEmpty()
 	}
 }
 

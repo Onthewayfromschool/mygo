@@ -76,8 +76,11 @@ The terminal does what terminal apps do:
 - **Copy and paste** are Command+C and Command+V on macOS, which the Edit
   menu's roles also send, and Control+Shift+C and Control+Shift+V
   elsewhere. Pastes are bracketed when the program asks, so that pasted
-  lines do not run as commands. The context menu has Copy, Paste, Select
-  All and Clear Scrollback.
+  lines do not run as commands; a clipboard without text, as with an image
+  alone, pastes an empty bracketed paste, as VS Code's terminal does, which
+  agents such as Claude Code take as their cue to read the image from the
+  clipboard themselves. The context menu has Copy, Paste, Select All and
+  Clear Scrollback.
 - **Scrolling**: the wheel and the touchpad scroll the scrollback, as do
   Shift+Page Up and Shift+Page Down. Full-screen programs get the wheel as
   arrow keys, or as mouse reports when they take the mouse. Typing scrolls

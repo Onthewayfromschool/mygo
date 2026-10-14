@@ -824,6 +824,35 @@ func TestOnPasteTakesAPaste(t *testing.T) {
 	}
 }
 
+// TestPasteWithoutText: a clipboard without text, as with an image alone,
+// pastes an empty bracketed paste to a program that asks for bracketed
+// pastes, which reads the clipboard itself as Claude Code does, and
+// nothing to any other.
+func TestPasteWithoutText(t *testing.T) {
+	loadLib(t)
+	conn := newPipe()
+	term, err := New(Options{Conn: conn})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer term.Close()
+	tt := ui.NewTester(func(c *ui.Context) { View(c, term).Fill().AutoFocus() }, 400, 200)
+	tt.SetClipboard("")
+	paste := ui.Super
+	if runtime.GOOS != "darwin" {
+		paste = ui.Ctrl | ui.Shift
+	}
+	tt.Key(paste, ui.KeyV)
+	if got := conn.take(1); got != "" {
+		t.Errorf("without bracketed paste, pasted %q", got)
+	}
+	term.Feed([]byte("\x1b[?2004h"))
+	tt.Key(paste, ui.KeyV)
+	if got := conn.take(12); got != "\x1b[200~\x1b[201~" {
+		t.Errorf("with bracketed paste, pasted %q", got)
+	}
+}
+
 // TestOnKeyTakesAKey: Options.OnKey sees a key press before the terminal
 // encodes it, in order with the keys after it; a true result sends
 // nothing, not even the text the key types.

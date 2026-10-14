@@ -582,6 +582,23 @@ func (t *Terminal) Paste(text string) {
 	t.redraw()
 }
 
+// pasteEmpty pastes a clipboard without text, as with an image alone: an
+// empty bracketed paste when the program asks for them (mode 2004), as
+// VS Code's terminal sends, which programs that take images, as Claude
+// Code, read as a paste of what the clipboard holds and read it
+// themselves; nothing to any other program.
+func (t *Terminal) pasteEmpty() {
+	t.mu.Lock()
+	if t.term == nil || !t.term.Mode(vt.ModeBracketedPaste) {
+		t.mu.Unlock()
+		return
+	}
+	t.term.ScrollToBottom()
+	t.mu.Unlock()
+	t.Send([]byte("\x1b[200~\x1b[201~"))
+	t.redraw()
+}
+
 // Feed shows data as if the program wrote it: text and escape sequences.
 func (t *Terminal) Feed(data []byte) { t.write(data) }
 
