@@ -868,4 +868,9 @@ func TestTextAnchorCaret(t *testing.T) {
 	if start, end := input.TextSelection(); start != 2 || end != 5 {
 		t.Errorf("selection %d–%d, want 2–5", start, end)
 	}
+	// Shift and an arrow move the caret, not the anchor.
+	tt.Key(Shift, KeyLeft)
+	if anchor, caret := input.TextAnchorCaret(); anchor != 5 || caret != 1 {
+		t.Errorf("anchor %d, caret %d after Shift-Left, want 5 and 1", anchor, caret)
+	}
 }

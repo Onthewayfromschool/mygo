@@ -121,15 +121,11 @@ func (e *node) TextSelection() (start, end int) {
 
 // TextAnchorCaret returns the selection of a text input as offsets in runes
 // into its text, from where it was started to its caret: the anchor is after
-// the caret when the selection was made backwards. A selection of several
-// ranges, in text of mixed direction, is returned in order.
+// the caret when the selection was made backwards.
 func (e *node) TextAnchorCaret() (anchor, caret int) {
 	ed := e.st.editor
 	if ed == nil {
 		return 0, 0
-	}
-	if ed.visualSelection {
-		return ed.selection()
 	}
 	return ed.anchor, ed.caret
 }

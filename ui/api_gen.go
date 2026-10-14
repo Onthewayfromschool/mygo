@@ -4653,8 +4653,7 @@ func (_handle Element) TextAlign(a Align) Element {
 
 // TextAnchorCaret returns the selection of a text input as offsets in runes
 // into its text, from where it was started to its caret: the anchor is after
-// the caret when the selection was made backwards. A selection of several
-// ranges, in text of mixed direction, is returned in order.
+// the caret when the selection was made backwards.
 func (_handle Element) TextAnchorCaret() (int, int) {
 	_node := _handle.node()
 	if _node == nil {
