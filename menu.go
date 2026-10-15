@@ -19,6 +19,9 @@ const (
 	MenuItemSubmenu   MenuItemType = "submenu"
 	MenuItemCheckbox  MenuItemType = "checkbox"
 	MenuItemRadio     MenuItemType = "radio"
+	// MenuItemHeader titles a section of the menu: macOS 14 and later
+	// show it as a section header, other systems as a disabled item.
+	MenuItemHeader MenuItemType = "header"
 )
 
 // MenuRole gives a menu item a predefined behavior, label and accelerator.
@@ -102,7 +105,20 @@ type MenuItem struct {
 	// before Click is called.
 	Checked bool
 	ToolTip string
-	Submenu []*MenuItem
+	// Sublabel is a second line of text under the label (macOS 14.4 and
+	// later).
+	Sublabel string
+	// Icon is a PNG image drawn before the label, at half its size in
+	// pixels so that it is sharp on Retina displays: a 32x32 image shows
+	// at 16x16 points (macOS).
+	Icon []byte
+	// Symbol names an SF Symbol drawn before the label, such as "folder",
+	// in place of Icon (macOS 11 and later).
+	Symbol string
+	// Alternate shows the item in place of the item before it while the
+	// user holds Option, as Finder's "Close All" for "Close" (macOS).
+	Alternate bool
+	Submenu   []*MenuItem
 	// Click is called on the main thread when the item is chosen. On Linux
 	// and Windows, win is the window whose menu bar or context menu was
 	// chosen. Other menus use the focused window, which may be nil.
@@ -423,8 +439,15 @@ func (it *MenuItem) snapshotLocked() *platform.MenuItem {
 		Visible:     !it.Hidden,
 		Checked:     it.Checked,
 		ToolTip:     it.ToolTip,
+		Sublabel:    it.Sublabel,
+		Icon:        it.Icon,
+		Symbol:      it.Symbol,
+		Alternate:   it.Alternate,
 	}
 	switch it.Type {
+	case MenuItemHeader:
+		p.Type = platform.MenuItemHeader
+		p.Enabled = false
 	case MenuItemSeparator:
 		p.Type = platform.MenuItemSeparator
 	case MenuItemSubmenu:

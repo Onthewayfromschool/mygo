@@ -114,6 +114,8 @@ func contentMenu(m *platform.Menu, chosen func(int)) []*MenuItem {
 			it.Type = MenuItemCheckbox
 		case platform.MenuItemRadio:
 			it.Type = MenuItemRadio
+		case platform.MenuItemHeader:
+			it.Type = MenuItemHeader
 		case platform.MenuItemSubmenu:
 			it.Type = MenuItemSubmenu
 			it.Submenu = []*MenuItem{}

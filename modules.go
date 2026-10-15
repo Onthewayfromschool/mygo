@@ -635,12 +635,34 @@ type Tray struct {
 	menu    *Menu
 	onClick listeners[func()]
 	onRight listeners[func()]
+	onEnter listeners[func([]string)]
+	onLeave listeners[func()]
+	onDrop  listeners[func([]string)]
 }
 
 type trayHandler struct{ t *Tray }
 
 func (h trayHandler) Clicked()      { fire(&h.t.onClick) }
 func (h trayHandler) RightClicked() { fire(&h.t.onRight) }
+
+func (h trayHandler) DragEntered(paths []string) bool {
+	if len(h.t.onDrop.snapshot()) == 0 {
+		return false
+	}
+	fire1(&h.t.onEnter, paths)
+	return true
+}
+
+func (h trayHandler) DragExited() { fire(&h.t.onLeave) }
+
+func (h trayHandler) Dropped(paths []string) bool {
+	if len(h.t.onDrop.snapshot()) == 0 {
+		return false
+	}
+	fire(&h.t.onLeave) // AppKit reports no exit after a drop
+	fire1(&h.t.onDrop, paths)
+	return true
+}
 
 // NewTray adds an icon to the menu bar or notification area. It must be
 // called after the application is ready.
@@ -741,6 +763,19 @@ func (t *Tray) OnClick(fn func()) (off func()) { return t.onClick.add(fn, false)
 
 // OnRightClick is called when the icon is right-clicked.
 func (t *Tray) OnRightClick(fn func()) (off func()) { return t.onRight.add(fn, false) }
+
+// OnDrop registers a listener for files dropped on the icon, with their
+// paths (macOS). Files dragged over an icon without one are refused.
+func (t *Tray) OnDrop(fn func(paths []string)) (off func()) { return t.onDrop.add(fn, false) }
+
+// OnDragEnter registers a listener for files dragged over the icon, which
+// it takes when it has an OnDrop listener, as to show that it would
+// (macOS).
+func (t *Tray) OnDragEnter(fn func(paths []string)) (off func()) { return t.onEnter.add(fn, false) }
+
+// OnDragLeave registers a listener for a drag leaving the icon, dropped
+// or not (macOS).
+func (t *Tray) OnDragLeave(fn func()) (off func()) { return t.onLeave.add(fn, false) }
 
 // NotificationOptions configures a desktop notification.
 type NotificationOptions struct {

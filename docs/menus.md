@@ -213,6 +213,25 @@ while the menu is open. To show a menu only on right-click while keeping
 primary clicks available, set the menu in `OnRightClick`, call
 `PopUpMenu`, then clear it with `SetMenu(nil)` when the call returns.
 
+A tray whose menu changes, as one listing recent files, builds it as the
+user clicks: leave the menu unset, and in `OnClick` set the menu of the
+moment and call `PopUpMenu`.
+
+On macOS an item can show more: `Symbol` names an SF Symbol and `Icon` a
+PNG (at half its size in pixels) before the label, `Sublabel` a second
+line under it (macOS 14.4 and later), and `Alternate` shows it in place of
+the item before it while Option is held. An item of type `MenuItemHeader`
+titles a section (macOS 14 and later; a disabled item elsewhere).
+
+Files dropped on the icon reach `OnDrop` (macOS), and `OnDragEnter` and
+`OnDragLeave` say when files are over it, as to change the icon meanwhile:
+
+```go
+tray.OnDragEnter(func([]string) { tray.SetIcon(dropIcon, true) })
+tray.OnDragLeave(func() { tray.SetIcon(icon, true) })
+tray.OnDrop(func(paths []string) { upload(paths) })
+```
+
 On Linux tray icons use AppIndicator, which needs
 `libayatana-appindicator3`: they show a menu and report no clicks, and
 `NewTray` returns an error without the library.

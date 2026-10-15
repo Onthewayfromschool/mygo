@@ -103,6 +103,13 @@ func (b *Backend) buildMenu(m *platform.Menu, title string, owner int) id {
 			track(owner, it.ID, item)
 			continue
 		}
+		if it.Type == platform.MenuItemHeader && respondsTo(class("NSMenuItem"), "sectionHeaderWithTitle:") {
+			item := send(class("NSMenuItem"), "sectionHeaderWithTitle:", uintptr(nsString(it.Label)))
+			send(item, "setHidden:", boolArg(!it.Visible))
+			send(menu, "addItem:", uintptr(item))
+			track(owner, it.ID, item)
+			continue
+		}
 		item := b.buildItem(it, owner)
 		send(menu, "addItem:", uintptr(item))
 		if it.Role == "zoomIn" {
@@ -136,6 +143,18 @@ func (b *Backend) buildItem(it *platform.MenuItem, owner int) id {
 	send(item, "setTarget:", uintptr(target))
 	send(item, "setTag:", uintptr(it.ID))
 	applyItemState(item, it)
+	if it.Sublabel != "" && respondsTo(item, "setSubtitle:") {
+		send(item, "setSubtitle:", uintptr(nsString(it.Sublabel)))
+	}
+	if img := menuItemImage(it); img != 0 {
+		send(item, "setImage:", uintptr(img))
+	}
+	if it.Alternate {
+		// Shown in place of the item before it, which has the same key
+		// equivalent, while Option is held.
+		send(item, "setAlternate:", 1)
+		send(item, "setKeyEquivalentModifierMask:", uintptr(mods|1<<19))
+	}
 	if it.Submenu != nil {
 		sub := b.buildMenu(it.Submenu, it.Label, owner)
 		send(item, "setSubmenu:", uintptr(sub))
@@ -150,6 +169,27 @@ func (b *Backend) buildItem(it *platform.MenuItem, owner int) id {
 	}
 	track(owner, it.ID, item)
 	return item
+}
+
+// menuItemImage returns the autoreleased image of an item's Symbol or Icon,
+// or 0 when it has none.
+func menuItemImage(it *platform.MenuItem) id {
+	if it.Symbol != "" && respondsTo(class("NSImage"), "imageWithSystemSymbolName:accessibilityDescription:") {
+		if img := send(class("NSImage"), "imageWithSystemSymbolName:accessibilityDescription:", uintptr(nsString(it.Symbol)), 0); img != 0 {
+			return img
+		}
+	}
+	if len(it.Icon) == 0 {
+		return 0
+	}
+	img := autorelease(send(send(class("NSImage"), "alloc"), "initWithData:", uintptr(nsData(it.Icon))))
+	if img == 0 {
+		return 0
+	}
+	// A PNG of 72 dpi is as many points as pixels: show it at half that.
+	size := msgSize(img, sel("size"))
+	msgSetSize(img, sel("setSize:"), NSSize{size.Width / 2, size.Height / 2})
+	return img
 }
 
 func applyItemState(item id, it *platform.MenuItem) {
@@ -299,7 +339,52 @@ func registerTrayTarget() {
 	})
 }
 
-var trayTarget id
+var trayTarget, trayDropDelegate id
+
+// registerTrayDropDelegate defines the delegate of a status item's window,
+// which NSWindow hands the drags over the icon to.
+func registerTrayDropDelegate() {
+	drop := func(win id) (*tray, platform.TrayDropHandler) {
+		for _, t := range theBackend.trays {
+			if t.item != 0 && send(t.button, "window") == win {
+				if h, ok := t.h.(platform.TrayDropHandler); ok {
+					return t, h
+				}
+			}
+		}
+		return nil, nil
+	}
+	entered := func(self id, _ objc.SEL, info id) uintptr {
+		_, h := drop(send(info, "draggingDestinationWindow"))
+		if h == nil {
+			return 0
+		}
+		if paths := draggedFiles(info); len(paths) > 0 && h.DragEntered(paths) {
+			return 1 // NSDragOperationCopy
+		}
+		return 0
+	}
+	classDef("MyGoTrayDropDelegate", "NSObject", nil, []objc.MethodDef{
+		method("draggingEntered:", entered),
+		method("draggingExited:", func(self id, _ objc.SEL, info id) {
+			if info == 0 {
+				return
+			}
+			if _, h := drop(send(info, "draggingDestinationWindow")); h != nil {
+				h.DragExited()
+			}
+		}),
+		method("prepareForDragOperation:", func(self id, _ objc.SEL, info id) bool { return true }),
+		method("performDragOperation:", func(self id, _ objc.SEL, info id) bool {
+			_, h := drop(send(info, "draggingDestinationWindow"))
+			if h == nil {
+				return false
+			}
+			paths := draggedFiles(info)
+			return len(paths) > 0 && h.Dropped(paths)
+		}),
+	})
+}
 
 func (b *Backend) NewTray(h platform.TrayHandler) (platform.Tray, error) {
 	if trayTarget == 0 {
@@ -313,6 +398,17 @@ func (b *Backend) NewTray(h platform.TrayHandler) (platform.Tray, error) {
 		send(t.button, "setTarget:", uintptr(trayTarget))
 		send(t.button, "setAction:", uintptr(sel("mygoTrayClicked:")))
 		send(t.button, "sendActionOn:", 1<<2|1<<4) // left and right mouse up
+		if _, ok := h.(platform.TrayDropHandler); ok {
+			if trayDropDelegate == 0 {
+				registerTrayDropDelegate()
+				trayDropDelegate = alloc("MyGoTrayDropDelegate")
+			}
+			// The status bar window hands drags over the icon to its delegate.
+			if win := send(t.button, "window"); win != 0 {
+				send(win, "registerForDraggedTypes:", uintptr(nsArray(nsString("public.file-url"))))
+				send(win, "setDelegate:", uintptr(trayDropDelegate))
+			}
+		}
 	})
 	b.trays[t.button] = t
 	return t, nil

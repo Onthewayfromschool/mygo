@@ -695,6 +695,9 @@ const (
 	MenuItemSubmenu
 	MenuItemCheckbox
 	MenuItemRadio
+	// MenuItemHeader is the title of a section of a menu (macOS 14 and
+	// later; a disabled item elsewhere).
+	MenuItemHeader
 )
 
 // Menu is a snapshot of a menu tree.
@@ -719,6 +722,16 @@ type MenuItem struct {
 	Checked     bool
 	ToolTip     string
 	Submenu     *Menu
+	// Sublabel is a line of text under the label (macOS 14.4 and later).
+	Sublabel string
+	// Icon is a PNG drawn before the label, at half its size in pixels.
+	Icon []byte
+	// Symbol names an SF Symbol drawn before the label (macOS), in place
+	// of Icon.
+	Symbol string
+	// Alternate shows the item in place of the one before it while Option
+	// is held (macOS).
+	Alternate bool
 }
 
 // FileFilter restricts the files shown in file dialogs.
@@ -954,6 +967,16 @@ type Secrets interface {
 type TrayHandler interface {
 	Clicked()
 	RightClicked()
+}
+
+// TrayDropHandler is implemented by TrayHandlers that take files dropped
+// on the icon (macOS).
+type TrayDropHandler interface {
+	// DragEntered reports whether the files dragged over the icon would be
+	// taken.
+	DragEntered(paths []string) bool
+	DragExited()
+	Dropped(paths []string) bool
 }
 
 // Tray is a status bar / notification area icon.
