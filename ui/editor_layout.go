@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -52,7 +53,7 @@ func (e *node) inputParams(width float32) text.Params {
 	ed := e.st.editor
 	p.Text = ed.displayText()
 	if !ed.password {
-		p.Spans, _ = ed.rangeSpans(0, ed.buf.n)
+		p.Spans = ed.rangeKey(0, ed.buf.n)
 	}
 	p.KeepSpaces = true
 	p.MaxLines = 0
@@ -212,7 +213,36 @@ func (e *node) paintInput(p *Painter) {
 // input method's composition at the caret, between start and end, sits
 // unstyled between the runs, and those after it move past it.
 func (ed *editor) rangeSpans(start, end int) (string, *spanPaint) {
+	return ed.styleRanges(start, end, true)
+}
+
+// rangeKey returns the spans of the weights of the TextRanges in runes
+// start up to end, as rangeSpans does, without how to paint them: a
+// layout needs no more, and a text without weights costs nothing.
+func (ed *editor) rangeKey(start, end int) string {
+	key, _ := ed.styleRanges(start, end, false)
+	return key
+}
+
+func (ed *editor) styleRanges(start, end int, paint bool) (string, *spanPaint) {
 	if len(ed.ranges) == 0 {
+		return "", nil
+	}
+	// The ranges are sorted by Start and do not overlap: those that meet
+	// start up to end are a run of them, from the last to start before
+	// start, or the first after it.
+	lo, _ := slices.BinarySearchFunc(ed.ranges, start, func(r TextRange, at int) int { return r.Start - at })
+	if lo > 0 && ed.ranges[lo-1].End > start {
+		lo--
+	}
+	hi := lo
+	weighted, colored := false, false
+	for ; hi < len(ed.ranges) && ed.ranges[hi].Start < end; hi++ {
+		r := ed.ranges[hi]
+		weighted = weighted || r.Weight > 0
+		colored = colored || r.Color.A > 0
+	}
+	if !weighted && !(paint && colored) {
 		return "", nil
 	}
 	caret, n := -1, 0
@@ -227,21 +257,34 @@ func (ed *editor) rangeSpans(start, end int) (string, *spanPaint) {
 		}
 		return i - start
 	}
+	// Each range adds a run, a gap before it, and one more where the
+	// caret splits it.
+	// To paint, the editor's buffers, which the painter holds only while it
+	// paints the paragraph.
 	var styles []text.Span
 	var spans []Span
-	weighted, colored := false, false
+	if paint {
+		styles, spans = ed.paintStyles[:0], ed.paintSpans[:0]
+	} else {
+		styles = make([]text.Span, 0, 2*(hi-lo)+1)
+	}
 	at := 0
 	add := func(from, to int, r TextRange) {
 		if from > at {
 			styles = append(styles, text.Span{End: from})
-			spans = append(spans, Span{})
+			if paint {
+				spans = append(spans, Span{})
+			}
 		}
 		styles = append(styles, text.Span{End: to, Weight: r.Weight})
-		spans = append(spans, Span{Color: r.Color, Weight: r.Weight})
+		if paint {
+			spans = append(spans, Span{Color: r.Color, Weight: r.Weight})
+		}
 		at = to
 	}
+	weighted, colored = false, false
 	last := start
-	for _, r := range ed.ranges {
+	for _, r := range ed.ranges[lo:hi] {
 		from, to := max(r.Start, start), min(r.End, end)
 		if from >= to || from < last {
 			continue
@@ -261,8 +304,12 @@ func (ed *editor) rangeSpans(start, end int) (string, *spanPaint) {
 		key = text.EncodeSpans(styles)
 	}
 	var sp *spanPaint
-	if colored {
-		sp = &spanPaint{spans: spans, styles: styles}
+	if paint {
+		ed.paintStyles, ed.paintSpans = styles, spans
+		if colored {
+			ed.painted = spanPaint{spans: spans, styles: styles}
+			sp = &ed.painted
+		}
 	}
 	return key, sp
 }

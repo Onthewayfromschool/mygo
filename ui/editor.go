@@ -64,6 +64,11 @@ type editor struct {
 	placeholder string
 	// ranges style runs of the text (TextRanges), sorted by Start.
 	ranges []TextRange
+	// paintStyles, paintSpans and painted hold what rangeSpans returns to
+	// paint a paragraph, used again for the next: painting keeps none.
+	paintStyles []text.Span
+	paintSpans  []Span
+	painted     spanPaint
 	// layout is what the last frame laid out of a single-line input or a
 	// selectable text; area lays out a text area (textarea.go).
 	layout           *text.Layout
