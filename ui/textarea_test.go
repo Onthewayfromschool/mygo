@@ -874,3 +874,52 @@ func TestTextAnchorCaret(t *testing.T) {
 		t.Errorf("anchor %d, caret %d after Shift-Left, want 5 and 1", anchor, caret)
 	}
 }
+
+// The TextRanges of a paragraph are those that meet it, the one begun in
+// the paragraph above among them, as many ranges as the text has: each
+// paragraph finds its own, and a layout that needs no weights builds none.
+func TestTextRangesOfParagraphs(t *testing.T) {
+	red, blue := RGB(220, 0, 0), RGB(0, 0, 220)
+	s := "one two\nthree four\nfive"
+	var el *node
+	tt := coreNewTester(func(c *context) {
+		el = textInput(c, &s, true).Fill().TextRanges(
+			TextRange{Start: 0, End: 3, Color: red},    // one
+			TextRange{Start: 4, End: 14, Color: blue},  // two\nthree
+			TextRange{Start: 19, End: 24, Color: red},  // four\nfive... clipped
+			TextRange{Start: 15, End: 19, Weight: 700}, // four
+		)
+	}, 300, 120)
+	defer tt.rt.close()
+	ed := el.st.editor
+	type want struct {
+		start, end int
+		ends       []int
+		colors     []Color
+	}
+	for _, w := range []want{
+		{0, 8, []int{3, 4, 8}, []Color{red, {}, blue}},
+		{8, 19, []int{6, 7, 11}, []Color{blue, {}, {}}},
+		{19, 24, []int{5}, []Color{red}},
+	} {
+		_, sp := ed.rangeSpans(w.start, w.end)
+		if sp == nil {
+			t.Fatalf("%d-%d: nothing to paint", w.start, w.end)
+		}
+		var ends []int
+		var colors []Color
+		for i, st := range sp.styles {
+			ends = append(ends, st.End)
+			colors = append(colors, sp.spans[i].Color)
+		}
+		if !slices.Equal(ends, w.ends) || !slices.Equal(colors, w.colors) {
+			t.Errorf("%d-%d: spans end at %v in %v, want %v in %v", w.start, w.end, ends, colors, w.ends, w.colors)
+		}
+	}
+	if key := ed.rangeKey(0, 8); key != "" {
+		t.Errorf("the first paragraph has no weights, but its key is %q", key)
+	}
+	if key := ed.rangeKey(8, 19); key == "" {
+		t.Error("the second paragraph has a weight, but no key")
+	}
+}

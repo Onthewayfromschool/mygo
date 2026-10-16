@@ -40,6 +40,12 @@ func TestRangeSpansSame(t *testing.T) {
 			ed.compose, ed.caret = "かな", max(0, start-2+rng.IntN(end-start+5))
 		}
 		k1, p1 := ed.rangeSpans(start, end)
+		if p1 != nil { // the editor's, which spansOf builds again
+			p1 = &spanPaint{spans: slices.Clone(p1.spans), styles: slices.Clone(p1.styles)}
+		}
+		if k := ed.rangeKey(start, end); k != k1 {
+			t.Fatalf("ranges %v, %d to %d: key %q, want %q", ed.ranges, start, end, k, k1)
+		}
 		k2, p2 := ed.spansOf(ed.ranges, start, end)
 		if k1 != k2 || !reflect.DeepEqual(p1, p2) {
 			t.Fatalf("ranges %v, %d to %d, composing %d runes at %d: %q %+v, want %q %+v",
