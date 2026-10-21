@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
@@ -277,5 +278,56 @@ func TestUpdaterWaitsForOpenFiles(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(main); string(b) != "v2" {
 		t.Errorf("after the update main = %q", b)
+	}
+}
+
+func TestHTTPGetRetriesAndSaysWhyCloudflareRefused(t *testing.T) {
+	defer func(d time.Duration) { httpRetryDelay = d }(httpRetryDelay)
+	httpRetryDelay = time.Millisecond
+	ctx := context.Background()
+
+	// Refused once, as by a rate limit, then served.
+	var calls int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls++; calls == 1 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.Write([]byte("ok"))
+	}))
+	defer srv.Close()
+	body, err := httpGet(ctx, srv.URL)
+	if err != nil {
+		t.Fatalf("after a refusal: %v", err)
+	}
+	b, _ := io.ReadAll(body)
+	body.Close()
+	if string(b) != "ok" || calls != 2 {
+		t.Errorf("got %q after %d requests", b, calls)
+	}
+
+	// Challenged each time: the error says so, with the ray to look up.
+	calls = 0
+	challenged := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Cf-Mitigated", "challenge")
+		w.Header().Set("Cf-Ray", "a4df53eead9f7193-LHR")
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer challenged.Close()
+	_, err = httpGet(ctx, challenged.URL)
+	if err == nil || !strings.HasSuffix(err.Error(), "403 Forbidden (cf-mitigated: challenge, cf-ray: a4df53eead9f7193-LHR)") || calls != 2 {
+		t.Errorf("challenged after %d requests: %v", calls, err)
+	}
+
+	// A 404 is asked once, and other servers' errors stay as they were.
+	calls = 0
+	missing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		http.NotFound(w, r)
+	}))
+	defer missing.Close()
+	if _, err = httpGet(ctx, missing.URL); err == nil || !strings.HasSuffix(err.Error(), ": 404 Not Found") || calls != 1 {
+		t.Errorf("missing after %d requests: %v", calls, err)
 	}
 }

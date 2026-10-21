@@ -385,14 +385,50 @@ func httpGet(ctx context.Context, rawURL string) (io.ReadCloser, error) {
 	}
 	req.Header.Set("User-Agent", "MyGo/"+Version+" "+App.Name()+"/"+App.Version())
 	resp, err := http.DefaultClient.Do(req)
+	// A CDN in front of the updates may refuse a request for a moment, as
+	// a rate limit or a server between deploys: it is asked once more.
+	if err == nil && retryable(resp.StatusCode) {
+		resp.Body.Close()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(httpRetryDelay):
+		}
+		resp, err = http.DefaultClient.Do(req)
+	}
 	if err != nil {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
-		return nil, fmt.Errorf("GET %s: %s", rawURL, resp.Status)
+		return nil, fmt.Errorf("GET %s: %s%s", rawURL, resp.Status, cdnDetail(resp.Header))
 	}
 	return resp.Body, nil
+}
+
+// httpRetryDelay is how long httpGet waits before asking again.
+var httpRetryDelay = 2 * time.Second
+
+func retryable(status int) bool {
+	return status == http.StatusForbidden || status == http.StatusTooManyRequests || status >= 500
+}
+
+// cdnDetail says why Cloudflare refused a request, from its response's
+// headers: cf-mitigated says it challenged the request, as its bot
+// protection or a WAF rule does, and cf-ray finds the request in its
+// Security Events. It is empty for other servers.
+func cdnDetail(h http.Header) string {
+	var parts []string
+	if v := h.Get("Cf-Mitigated"); v != "" {
+		parts = append(parts, "cf-mitigated: "+v)
+	}
+	if v := h.Get("Cf-Ray"); v != "" {
+		parts = append(parts, "cf-ray: "+v)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(parts, ", ") + ")"
 }
 
 func isLoopback(host string) bool {
