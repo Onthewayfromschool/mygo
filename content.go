@@ -231,7 +231,10 @@ func (h *windowHandler) SurfaceEvent(ev platform.SurfaceEvent) bool {
 		case platform.DataDragLeave:
 			c.Event(platform.SurfaceEvent{Kind: platform.FileDragLeave})
 		case platform.DataDragOver, platform.DataDrop:
-			if d.HasFiles || slices.Contains(d.Offer.Formats, transfer.FileList) {
+			// A drag resolved to a session of this process is a value or
+			// data drag. It never degrades to a file drop: what its
+			// targets did not take is no Finder drop either.
+			if !d.Resolved && (d.HasFiles || slices.Contains(d.Offer.Formats, transfer.FileList)) {
 				d.Operation = transfer.Negotiate(d.Offer.Operations, transfer.Copy, d.Offer.Suggested)
 				if d.Operation == transfer.None {
 					return false

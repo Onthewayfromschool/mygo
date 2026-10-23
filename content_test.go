@@ -17,6 +17,7 @@ import (
 	"github.com/egoist/mygo/internal/fake"
 	"github.com/egoist/mygo/internal/platform"
 	"github.com/egoist/mygo/internal/wait"
+	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -255,6 +256,60 @@ func TestContentFileDrop(t *testing.T) {
 	}
 	if !send(platform.SurfaceEvent{Kind: platform.FileDrop, X: 20, Y: 20, Files: []string{"/b"}}) || len(events) != 1 || len(zone) != 1 || zone[0] != "/b" {
 		t.Errorf("dropped on the zone: events %d, zone %q", len(events), zone)
+	}
+}
+
+// TestContentOwnDataDragIsNoFileDrop: a data drag this process started and
+// dropped back into its own window never degrades to a file drop, so
+// DroppedFiles elements and OnFileDrop see only files of other apps;
+// files of an unresolved, foreign drag still reach them.
+func TestContentOwnDataDragIsNoFileDrop(t *testing.T) {
+	var zone []string
+	view := func(c *ui.Context) {
+		if files := ui.Box(c).Size(100, 50).DroppedFiles(); files != nil {
+			zone = files
+		}
+	}
+	w, _, s := contentWindow(t, view)
+	var events []*FileDropEvent
+	w.OnFileDrop(func(e *FileDropEvent) { events = append(events, e) })
+	send := func(ev platform.SurfaceEvent) (taken bool) {
+		onMain(func() {
+			taken = s.Send(ev)
+			s.Frame()
+		})
+		return taken
+	}
+	fileDrag := func(session string, data transfer.Data) *platform.DataDragEvent {
+		return &platform.DataDragEvent{
+			Offer:    transfer.Offer{Formats: data.Formats(), Operations: transfer.Copy},
+			Session:  session,
+			HasFiles: true,
+			Data:     data,
+		}
+	}
+	data, err := transfer.FileData("/b")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A foreign data drag keeps falling through to the file drop.
+	if !send(platform.SurfaceEvent{Kind: platform.DataDrop, X: 200, Y: 150, Drag: fileDrag("", data)}) ||
+		len(events) != 1 || events[0].Paths[0] != "/b" {
+		t.Fatalf("a foreign data drop: taken %v, events %+v", true, events)
+	}
+
+	// One of this process' own sessions does not, not on OnFileDrop and
+	// not on a DroppedFiles element.
+	activeDataDrag = &dataSource{token: "tok", data: data, operations: transfer.Copy}
+	t.Cleanup(func() { activeDataDrag = nil })
+	if send(platform.SurfaceEvent{Kind: platform.DataDrop, X: 200, Y: 150, Drag: fileDrag("tok", transfer.Data{})}) ||
+		len(events) != 1 || zone != nil {
+		t.Errorf("own drop outside of the zone: events %+v, zone %q", events, zone)
+	}
+	if send(platform.SurfaceEvent{Kind: platform.DataDrop, X: 20, Y: 20, Drag: fileDrag("tok", transfer.Data{})}) ||
+		len(events) != 1 || zone != nil {
+		t.Errorf("own drop on the zone: events %+v, zone %q", events, zone)
 	}
 }
 
