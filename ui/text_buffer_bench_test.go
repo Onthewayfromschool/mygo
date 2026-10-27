@@ -46,3 +46,24 @@ func TestTextBufferEditAllocationIsBounded(t *testing.T) {
 		t.Fatal("small edit corrupted document")
 	}
 }
+
+// Scrolling text that is not ASCII, as Chinese prose, a frame at a time:
+// the text area asks where each paragraph it shows starts many times a
+// frame, which counts its runes one by one.
+func BenchmarkTextAreaBufferScrollCJK(b *testing.B) {
+	line := "长时间运行的终端任务会在自己干活、等用户和完成之间来回切换，用户通常去干别的了。\n"
+	doc := NewTextBuffer(strings.Repeat(line, 2000))
+	tt := coreNewTester(func(c *context) { bufferInputBase(c, doc, true).Fill().AutoFocus() }, 1200, 800)
+	tt.Frame()
+	b.ReportAllocs()
+	i := 0
+	for b.Loop() {
+		dy := float32(40)
+		if i/100%2 == 1 {
+			dy = -40
+		}
+		tt.Scroll(600, 400, 0, dy)
+		tt.Frame()
+		i++
+	}
+}

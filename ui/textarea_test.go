@@ -73,6 +73,42 @@ func TestBufferEdits(t *testing.T) {
 	}
 }
 
+// TestIndexedBufferStarts edits an indexed buffer, asking where its
+// paragraphs start before and after each edit, for the starts it counted
+// at an earlier version not to stay.
+func TestIndexedBufferStarts(t *testing.T) {
+	alphabet := []rune("ab \n世界€😀é")
+	rng := rand.New(rand.NewPCG(3, 4))
+	want := []rune(strings.Repeat("中文 text\n", 600))
+	var b buffer
+	b.setSnapshot(NewTextBuffer(string(want)).Snapshot())
+	for step := range 300 {
+		a := rng.IntN(len(want) + 1)
+		z := a + rng.IntN(min(len(want)-a, 6)+1)
+		ins := make([]rune, rng.IntN(5))
+		for i := range ins {
+			ins[i] = alphabet[rng.IntN(len(alphabet))]
+		}
+		b.replace(a, z, string(ins))
+		want = append(want[:a:a], append(ins, want[z:]...)...)
+		lines := strings.Split(string(want), "\n")
+		if len(b.paras) != len(lines) {
+			t.Fatalf("step %d: %d paragraphs, want %d", step, len(b.paras), len(lines))
+		}
+		at := 0
+		for p, l := range lines {
+			n := len([]rune(l))
+			if b.start(p) != at || b.end(p) != at+n || b.text(p) != l {
+				t.Fatalf("step %d: paragraph %d is %d-%d %q, want %d-%d %q", step, p, b.start(p), b.end(p), b.text(p), at, at+n, l)
+			}
+			if r, _ := b.next(p); r != min(at+n+1, len(want)) {
+				t.Fatalf("step %d: paragraph %d next %d, want %d", step, p, r, min(at+n+1, len(want)))
+			}
+			at += n + 1
+		}
+	}
+}
+
 func TestBufferSetUTF8(t *testing.T) {
 	for _, s := range []string{
 		"", "\n", "ascii\ncode\n", "long ASCII line without a newline",

@@ -122,14 +122,24 @@ func (s TextSnapshot) TextForRange(r TextInputRange) (string, TextInputRange) {
 // The terminal empty line after a newline is counted; line indices clamp.
 func (s TextSnapshot) LineRange(line int) (int, int) {
 	line = max(0, min(line, s.LineCount()-1))
-	a := rope.Prefix(s.root, rope.LineStart(s.root, line)).Runes
+	a := rope.PrefixRunes(s.root, rope.LineStart(s.root, line))
 	z := s.Len()
 	if line+1 < s.LineCount() {
-		z = rope.Prefix(s.root, rope.LineStart(s.root, line+1)).Runes - 1
+		z = rope.PrefixRunes(s.root, rope.LineStart(s.root, line+1)) - 1
 	}
 	return a, z
 }
-func (s TextSnapshot) Line(line int) string { a, z := s.LineRange(line); return s.Slice(a, z) }
+
+// Line returns a line's text, excluding its following newline, found by
+// its bytes rather than its runes.
+func (s TextSnapshot) Line(line int) string {
+	line = max(0, min(line, s.LineCount()-1))
+	a, z := rope.LineStart(s.root, line), s.ByteLen()
+	if line+1 < s.LineCount() {
+		z = rope.LineStart(s.root, line+1) - 1
+	}
+	return sliceBytes(s.root, a, z)
+}
 func (s TextSnapshot) LineAt(index int) int {
 	return rope.Prefix(s.root, rope.ByteOfRune(s.root, index)).Lines
 }

@@ -42,10 +42,13 @@ func (b *buffer) byteLen() int {
 	return len(b.s)
 }
 func (b *buffer) start(p int) int {
-	if b.indexed {
-		return rope.Prefix(b.root, rope.LineStart(b.root, p)).Runes
+	pr := &b.paras[p]
+	if b.indexed && pr.at != b.version {
+		// Counted once an edit: the text area asks for it many times a
+		// frame, and text that is not ASCII is counted rune by rune.
+		pr.rune, pr.at = rope.PrefixRunes(b.root, rope.LineStart(b.root, p)), b.version
 	}
-	return b.paras[p].rune
+	return pr.rune
 }
 func (b *buffer) setSnapshot(s TextSnapshot) {
 	b.s = ""
@@ -65,9 +68,11 @@ func (b *buffer) setSnapshot(s TextSnapshot) {
 // bytes, and what a text area made of it (textarea.go): its layout, at
 // the width and in the style of the text area's last layout, with the
 // composition of an input method it showed, and its height, 0 until it was
-// laid out.
+// laid out. An indexed buffer counts where a paragraph starts, in runes,
+// as it is asked, and at is the version it counted it at.
 type paragraph struct {
 	rune, byte, units int
+	at                uint64
 	layout            *text.Layout
 	compose           string
 	// spans are the weights of the TextRanges in the paragraph, as its
@@ -184,8 +189,10 @@ func (b *buffer) para(i int) int {
 // the end of the text.
 func (b *buffer) next(p int) (rune, byte int) {
 	if b.indexed {
-		off := rope.LineStart(b.root, p+1)
-		return rope.Prefix(b.root, off).Runes, off
+		if p+1 < len(b.paras) {
+			return b.start(p + 1), rope.LineStart(b.root, p+1)
+		}
+		return b.n, rope.Sum(b.root).Bytes
 	}
 	if p+1 < len(b.paras) {
 		return b.paras[p+1].rune, b.paras[p+1].byte

@@ -76,6 +76,9 @@ func checkLines(t *testing.T, text Text, s string) {
 		if text.LineStart(i) != off || text.LineEnd(i) != off+len(l) || text.Line(i) != l {
 			t.Fatalf("line %d: start %d end %d %q, want %d %d %q", i, text.LineStart(i), text.LineEnd(i), text.Line(i), off, off+len(l), l)
 		}
+		if PrefixRunes(text.Root(), off) != Prefix(text.Root(), off).Runes {
+			t.Fatalf("PrefixRunes(%d) = %d, want %d", off, PrefixRunes(text.Root(), off), Prefix(text.Root(), off).Runes)
+		}
 		if text.LineOf(off) != i || text.LineOf(off+len(l)) != i {
 			t.Fatalf("LineOf(%d) = %d, want %d", off, text.LineOf(off), i)
 		}

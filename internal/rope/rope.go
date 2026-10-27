@@ -312,6 +312,29 @@ func Prefix(n *Node, at int) Summary {
 	return n.left.sum.add(Prefix(n.right, at-n.left.sum.Bytes))
 }
 
+// PrefixRunes returns the runes of the text before byte at, as Prefix
+// does, counting only the runes of the leaf it ends in: a paragraph's
+// start, asked for many times a frame, of text that is not ASCII.
+func PrefixRunes(n *Node, at int) int {
+	runes := 0
+	for n != nil && at > 0 {
+		if at >= n.sum.Bytes {
+			return runes + n.sum.Runes
+		}
+		if n.left == nil {
+			return runes + CountRunes(n.text[:at])
+		}
+		if at <= n.left.sum.Bytes {
+			n = n.left
+			continue
+		}
+		runes += n.left.sum.Runes
+		at -= n.left.sum.Bytes
+		n = n.right
+	}
+	return runes
+}
+
 // LineStart returns the byte line starts at, the end of the text past
 // the last line.
 func LineStart(n *Node, line int) int {
