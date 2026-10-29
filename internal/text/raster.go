@@ -245,7 +245,7 @@ func (s *System) makeRoom(color bool, want int, size image.Point, grow bool) {
 func (s *System) Glyph(f *Font, id uint32, scale, x float32, shade Shade, opaque bool) GlyphImage {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if f == nil {
+	if f == nil || f.released {
 		return GlyphImage{}
 	}
 	shade = f.shadeFor(shade)

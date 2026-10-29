@@ -5,6 +5,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/egoist/mygo/internal/text"
 	"github.com/egoist/mygo/plugins/terminal/internal/vt"
 	"github.com/egoist/mygo/ui"
 )
@@ -83,8 +84,8 @@ func (v *view) layout(r ui.Rect, scale float32) {
 	f := t.font()
 	fk := f.key(scale)
 	t.mu.Unlock()
-	if fk != v.font {
-		v.font, v.scale = fk, scale
+	if gen := text.Shared().Generation(); fk != v.font || gen != v.textGen {
+		v.font, v.scale, v.textGen = fk, scale, gen
 		for i := range v.fonts {
 			v.fonts[i] = fk.variant(i)
 		}

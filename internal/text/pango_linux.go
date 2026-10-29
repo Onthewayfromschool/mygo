@@ -1377,6 +1377,7 @@ func (e *pangoEngine) forgetFonts() {
 	clear(e.scaled)
 	for _, f := range e.fonts {
 		l.gObjectUnref(f.native)
+		f.native, f.released = 0, true
 	}
 	clear(e.fonts)
 	clear(e.colored)

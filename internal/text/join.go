@@ -59,7 +59,7 @@ func (s *System) Shares(a GlyphImage, ax, ay float32, b GlyphImage, bx, by float
 // clamped. The glyphs are for text of a shade, on an opaque background or
 // not, as for Glyph. Left is relative to the pixel the first pen is in.
 func (s *System) GlyphRun(f *Font, ids []uint32, xs []float32, scale float32, shade Shade, opaque bool) GlyphImage {
-	if len(ids) == 0 || len(ids) != len(xs) {
+	if len(ids) == 0 || len(ids) != len(xs) || f == nil {
 		return GlyphImage{}
 	}
 	// The glyphs, as placed alone, which the key names.
@@ -69,6 +69,9 @@ func (s *System) GlyphRun(f *Font, ids []uint32, xs []float32, scale float32, sh
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if f.released {
+		return GlyphImage{}
+	}
 	shade = f.shadeFor(shade)
 	subpixel := opaque && s.subpixel
 	origin := math.Floor(float64(xs[0]))

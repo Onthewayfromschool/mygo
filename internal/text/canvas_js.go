@@ -686,6 +686,9 @@ func (e *canvasEngine) fontCount() int {
 // forgetFonts lets go of the fonts, and of the glyphs and measurements,
 // which refer to them by number.
 func (e *canvasEngine) forgetFonts() {
+	for _, f := range e.fonts {
+		f.released = true
+	}
 	clear(e.fonts)
 	clear(e.emoji)
 	e.css = e.css[:0]

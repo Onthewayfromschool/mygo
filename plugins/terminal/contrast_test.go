@@ -3,6 +3,7 @@ package terminal
 import (
 	"testing"
 
+	"github.com/egoist/mygo/internal/text"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -64,5 +65,46 @@ func TestMinimumContrastShapes(t *testing.T) {
 	}
 	if len(text) == 0 || text[len(text)-1] == gray {
 		t.Errorf("text in %v: not contrasted from %v", text, gray)
+	}
+}
+
+// TestRowsShapedAnewAfterFonts shapes the rows anew once the text system
+// lets go of its fonts: the glyphs of the rows refer to them, and drawing
+// them crashed in Core Text after a long session.
+func TestRowsShapedAnewAfterFonts(t *testing.T) {
+	loadLib(t)
+	term, err := New(Options{Conn: newPipe()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer term.Close()
+	tt := ui.NewTester(func(c *ui.Context) { View(c, term).Fill() }, 400, 200)
+	term.Feed([]byte("hello"))
+	tt.Frame()
+	glyph := func() *ui.Glyph {
+		term.mu.Lock()
+		defer term.mu.Unlock()
+		if len(term.v.lines) == 0 || len(term.v.lines[0].runs) == 0 {
+			t.Fatal("no text in the first row")
+		}
+		return &term.v.lines[0].runs[0].glyphs[0]
+	}
+	before := glyph()
+	// Fonts of many sizes, as an animation makes, which the next frame
+	// lets go of.
+	s := text.Shared()
+	gen := s.Generation()
+	for i := 0; s.Generation() == gen && i < 10000; i++ {
+		s.Layout(text.Params{Text: "Hi", Style: text.Style{Size: 10 + float32(i)/10}})
+		if i%64 == 63 {
+			s.EndFrame()
+		}
+	}
+	if s.Generation() == gen {
+		t.Fatal("the text system kept its fonts")
+	}
+	tt.Frame()
+	if glyph() == before {
+		t.Error("the row kept the glyphs of the fonts let go of")
 	}
 }

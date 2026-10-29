@@ -742,6 +742,35 @@ func TestFontsOfManySizes(t *testing.T) {
 	}
 }
 
+// TestReleasedFont draws nothing, without asking the engine, with a Font
+// kept past the frame that let the fonts go, as a terminal's shaped rows
+// keep theirs.
+func TestReleasedFont(t *testing.T) {
+	s := newSystem()
+	f, ok := s.engine().(fontForgetter)
+	if !ok {
+		t.Skip("the engine keeps no fonts")
+	}
+	kept := s.Layout(Params{Text: "Hi", Style: Style{Size: 13}}).Lines[0].Glyphs[0]
+	for i := 0; f.fontCount() <= maxFonts; i++ {
+		s.Layout(Params{Text: "Hi", Style: Style{Size: 14 + float32(i)/10}})
+	}
+	s.EndFrame()
+	if !kept.Font.released {
+		t.Fatal("the kept font is not released")
+	}
+	if img := s.Glyph(kept.Font, kept.ID, 1, 0, 0, false); img.OK {
+		t.Error("a released font drew a glyph")
+	}
+	if img := s.GlyphRun(kept.Font, []uint32{kept.ID, kept.ID}, []float32{0, 8}, 1, 0, false); img.OK {
+		t.Error("a released font drew a run")
+	}
+	g := s.Layout(Params{Text: "Hi", Style: Style{Size: 13}}).Lines[0].Glyphs[0]
+	if g.Font.released || !s.Glyph(g.Font, g.ID, 1, 0, 0, false).OK {
+		t.Error("text laid out again draws nothing")
+	}
+}
+
 // TestPlacement checks that glyphs go to the positions within a pixel the
 // system's text stack draws them at, and baselines to its whole pixels:
 // Core Graphics' two positions a pixel at 26 pixels an em, left of the pen,

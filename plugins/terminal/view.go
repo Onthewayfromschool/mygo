@@ -159,6 +159,10 @@ type view struct {
 	cellW, cellH, baseline int
 	ox, oy                 int
 	cols, rows             int
+	// textGen is the text system's generation the rows were shaped in:
+	// when it lets go of its fonts, the glyphs of the rows, which refer to
+	// them, are shaped anew.
+	textGen uint64
 
 	colors    vt.Colors
 	contrast  float32 // Options.MinimumContrast, as of the last paint

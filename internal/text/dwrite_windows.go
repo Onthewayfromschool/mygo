@@ -1556,6 +1556,7 @@ func (e *dwrite) fontCount() int { return len(e.fonts) }
 func (e *dwrite) forgetFonts() {
 	for _, f := range e.fonts {
 		release(f.native)
+		f.native, f.released = 0, true
 	}
 	clear(e.fonts)
 }

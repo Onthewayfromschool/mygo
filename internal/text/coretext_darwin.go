@@ -1551,6 +1551,7 @@ func (e *coreText) forgetFonts() {
 	for _, fs := range e.fonts {
 		for _, f := range fs {
 			ct.release(f.native)
+			f.native, f.released = 0, true
 		}
 	}
 	clear(e.fonts)
