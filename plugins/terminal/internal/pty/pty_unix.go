@@ -41,6 +41,13 @@ func (p *PTY) start(o Options) error {
 		master.Close()
 		return err
 	}
+	// macOS keeps the non-blocking flag in the tty, shared by both ends:
+	// the child's descriptors going non-blocking (as os/exec leaves them)
+	// makes reads of the master return EAGAIN at once, which read takes for
+	// the end of the program. Reads here block on a thread of their own.
+	if fl, _, e := syscall.Syscall(syscall.SYS_FCNTL, master.Fd(), syscall.F_GETFL, 0); e == 0 && fl&syscall.O_NONBLOCK != 0 {
+		syscall.Syscall(syscall.SYS_FCNTL, master.Fd(), syscall.F_SETFL, fl&^syscall.O_NONBLOCK)
+	}
 	p.master, p.cmd = master, cmd
 	return nil
 }
